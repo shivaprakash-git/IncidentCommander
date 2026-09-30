@@ -1,0 +1,4 @@
+{
+  "chat": "google/gemma-4-31b-it",
+  "embed": "nvidia/llama-nemotron-embed-vl-1b-v2"
+}

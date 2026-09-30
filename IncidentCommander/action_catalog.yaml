@@ -1,0 +1,153 @@
+# Action catalog: the ONLY source of risk_level. No code path lets LLM output set it.
+#   safe           = information / read-only, no gate (auto-logged to the audit trail)
+#   needs_approval = changes the system, human approve/reject/escalate required
+#   forbidden      = never executed by the tool, escalate-only
+#
+# An action is recommended for a hypothesis when ANY of:
+#   - a `keywords` entry appears in the hypothesis cause text (case-insensitive), or
+#   - a `runbooks` entry equals the file stem of one of the hypothesis' retrieved runbook_refs.
+# `fallback: true` actions are offered when the RCA reports insufficient evidence.
+
+actions:
+  # ---- authentication / security violation ---------------------------------
+  - id: review_security_violations
+    title: Review SECURITY VIOLATION records (violation code, usercode, station)
+    description: Count violations per usercode/station/hour in the SUMLOG and security log; note code 9 (bad usercode) vs 10 (bad password).
+    subsystem: security/logon
+    keywords: [security violation, incorrect usercode, incorrect password, invalid usercode, credential, log on, logon]
+    runbooks: [auth_failure_security_violation]
+    risk_level: safe
+  - id: check_source_station
+    title: Identify the originating station / IP of the failed logons
+    description: Trace ORIGINATING LSN/MCS and STATION NAME to a host; compare with expected users.
+    subsystem: security/logon
+    keywords: [security violation, brute, credential, nxedit, station]
+    runbooks: [auth_failure_security_violation]
+    risk_level: safe
+  - id: suspend_usercode
+    title: Suspend the offending usercode
+    description: Temporarily suspend the usercode being attacked or misused until the owner is verified.
+    subsystem: security/logon
+    keywords: [brute, repeated, security violation, incorrect password, incorrect usercode]
+    runbooks: [auth_failure_security_violation]
+    risk_level: needs_approval
+  - id: block_source_host
+    title: Block the source host at the network edge
+    description: Add the originating IP to the firewall / MCS station block list.
+    subsystem: security/logon
+    keywords: [brute, external, attack]
+    runbooks: [auth_failure_security_violation]
+    risk_level: needs_approval
+  - id: check_kerberos_gssapi_library
+    title: Verify the GSSAPI / Kerberos support library is present and initiated
+    description: Check *SYSTEM/NXEDIT/SUPPORT linkage to GSSAPI when logs show 'Linklibrary to GSSAPI failed'.
+    subsystem: security/logon
+    keywords: [gssapi, kerberos]
+    risk_level: safe
+
+  # ---- library linkage ------------------------------------------------------
+  - id: verify_codefile_exists
+    title: Verify the library code file exists and is resolvable
+    description: Confirm the code file named in 'LINKAGE FAILED DUE TO MISSING CODE FILE' is on disk and the SL/FD names resolve.
+    subsystem: library/linkage
+    keywords: [linkage failed, missing code file, codefile, code file]
+    runbooks: [linkage_failure_missing_code_file]
+    risk_level: safe
+  - id: check_library_initiated
+    title: Check whether the exporting library task is running
+    description: For 'LIBRARY NOT INITIATED', check the library task status and its start dependencies.
+    subsystem: library/linkage
+    keywords: [library not initiated, not initiated, library]
+    runbooks: [linkage_failure_missing_code_file]
+    risk_level: safe
+  - id: start_library
+    title: Start / re-initiate the exporting library
+    description: Start the library task so dependent programs can link.
+    subsystem: library/linkage
+    keywords: [library not initiated, not initiated]
+    runbooks: [linkage_failure_missing_code_file]
+    risk_level: needs_approval
+  - id: restore_codefile
+    title: Restore or re-install the missing code file
+    description: Copy the code file from the release/backup family to the expected location.
+    subsystem: library/linkage
+    keywords: [missing code file]
+    runbooks: [linkage_failure_missing_code_file]
+    risk_level: needs_approval
+
+  # ---- storage / SUMLOG -----------------------------------------------------
+  - id: check_family_space
+    title: Check free space on the affected disk family
+    description: Review family free sectors and largest free areas.
+    subsystem: storage
+    keywords: [disk, space low, no disk space, open failed, capacity, family]
+    runbooks: [disk_capacity_file_open_failures, sumlog_full]
+    risk_level: safe
+  - id: add_disk_to_family
+    title: Add a disk to the family (RC)
+    description: Reconfigure with RC to add disk capacity to the full family.
+    subsystem: storage
+    keywords: [disk, no disk space, capacity, sumlog full, family full]
+    runbooks: [disk_capacity_file_open_failures, sumlog_full]
+    risk_level: needs_approval
+  - id: dl_log_and_squash
+    title: Start a new SUMLOG (DL LOG) and SQUASH the old one
+    description: Follow the documented SUMLOG-full procedure; entries may be lost if SUMLOGFULL=DISCARD is in effect.
+    subsystem: storage
+    keywords: [sumlog full, sumlog disk, entries being discarded]
+    runbooks: [sumlog_full]
+    risk_level: needs_approval
+  - id: purge_sumlog_files
+    title: Delete old SUMLOG files to free space
+    description: Removes historical audit evidence. Never automated.
+    subsystem: storage
+    keywords: [sumlog full, disk, space low]
+    runbooks: [sumlog_full]
+    risk_level: forbidden
+
+  # ---- database lock contention ---------------------------------------------
+  - id: identify_lock_holder
+    title: Identify the task holding the contended DMSII structure lock
+    description: Use the lock-wait records to find the blocking mix number and its usercode.
+    subsystem: database
+    keywords: [lock, deadlock, dmsii, timeout]
+    runbooks: [db_lock_contention_cascade]
+    risk_level: safe
+  - id: terminate_blocking_task
+    title: Terminate (DS) the blocking task
+    description: Discontinue the task holding the lock so waiters can proceed; in-flight updates roll back.
+    subsystem: database
+    keywords: [lock, deadlock, dmsii]
+    runbooks: [db_lock_contention_cascade]
+    risk_level: needs_approval
+  - id: restart_database_engine
+    title: Halt/load or restart the database engine
+    description: Whole-system or engine restart. Escalate to the duty manager.
+    subsystem: database
+    keywords: [deadlock, hung, unresponsive]
+    runbooks: [db_lock_contention_cascade, halt_load_recovery]
+    risk_level: forbidden
+
+  # ---- task abend / halt-load ------------------------------------------------
+  - id: inspect_task_history
+    title: Read the task HISTORY and mix number in the abend record
+    description: "The HISTORY line (DS ED - reason) names the fault; correlate it with the mix number and usercode."
+    subsystem: task management
+    keywords: [abend, ds ed, discontinued, fault, terminated]
+    runbooks: [task_abend_dsed]
+    risk_level: safe
+  - id: halt_load_system
+    title: Halt/load the system
+    description: Operator-level recovery of last resort. Escalate only.
+    subsystem: general
+    keywords: [halt/load, halt load, system hang, unresponsive]
+    runbooks: [halt_load_recovery]
+    risk_level: forbidden
+
+  # ---- fallback ---------------------------------------------------------------
+  - id: gather_more_diagnostics
+    title: Gather more diagnostics (widen the SUMLOG window, review the timeline)
+    description: Evidence was insufficient for a root cause; collect more context before acting.
+    subsystem: general
+    fallback: true
+    risk_level: safe

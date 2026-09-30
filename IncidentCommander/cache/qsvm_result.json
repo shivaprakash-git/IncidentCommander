@@ -1,0 +1,61 @@
+{
+  "n_labeled": 40,
+  "n_positive": 10,
+  "n_negative": 30,
+  "status": "ok",
+  "features": [
+    "lib_events",
+    "diag_events",
+    "logon_events",
+    "warn_events",
+    "linkage_failed"
+  ],
+  "kernel_seconds": 0.93,
+  "cv": "10x repeated stratified 5-fold, pooled out-of-fold predictions",
+  "results": {
+    "qsvm": {
+      "precision": {
+        "mean": 0.6378787878787878,
+        "std": 0.036358406174584655
+      },
+      "recall": {
+        "mean": 0.76,
+        "std": 0.08000000000000003
+      },
+      "auc": {
+        "mean": 0.8859999999999999,
+        "std": 0.01051982255870632
+      }
+    },
+    "svm_rbf": {
+      "precision": {
+        "mean": 0.6527472527472529,
+        "std": 0.019780219780219755
+      },
+      "recall": {
+        "mean": 0.9,
+        "std": 0.0
+      },
+      "auc": {
+        "mean": 0.9166666666666666,
+        "std": 0.015420044674960503
+      }
+    },
+    "gbm": {
+      "precision": {
+        "mean": 0.793524531024531,
+        "std": 0.059212077259006776
+      },
+      "recall": {
+        "mean": 0.71,
+        "std": 0.09433981132056607
+      },
+      "auc": {
+        "mean": 0.8515,
+        "std": 0.06043109023231887
+      }
+    }
+  },
+  "note": "one AngleEmbedding layer = product-state kernel (classically simulable); N is small, so differences are within noise unless stated otherwise",
+  "elapsed_seconds": 5.3
+}

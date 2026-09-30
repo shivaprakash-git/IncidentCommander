@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+httpx
+numpy
+scipy
+scikit-learn
+networkx
+python-louvain
+pennylane
+pyyaml
+python-dotenv
+requests
+pytest
